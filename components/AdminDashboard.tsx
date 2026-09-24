@@ -75,15 +75,22 @@ export default function AdminDashboard() {
   if (checkingSession) return <main className="grid min-h-screen place-items-center" style={{ background: 'var(--dusk)' }} />;
 
   if (!session) return (
-    <main className="min-h-screen" style={{ background: 'var(--dusk)' }}>
+    <main className="min-h-screen bg-[var(--paper)] lg:grid lg:grid-cols-[1fr_1fr]">
+      <div className="feature-tile hidden min-h-screen justify-between !p-12 lg:flex lg:flex-col" style={{ justifyContent: 'space-between' }}>
+        <Link href="/" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-white/70"><ArrowLeft size={16} /> Back to public website</Link>
+        <div>
+          <Image src="/images/logo-mark.png" alt="Maison Prisca" width={54} height={54} />
+          <blockquote className="pull-quote mt-8 max-w-sm text-4xl text-white">Luxury is the feeling of being perfectly understood.</blockquote>
+        </div>
+        <p className="text-xs text-white/40">Maison Prisca — private atelier dashboard</p>
+      </div>
       <div className="shell flex min-h-screen items-center justify-center py-16">
-        <div className="w-full max-w-md rounded-[28px] bg-[var(--white)] p-8 text-[var(--ink)]">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--rose-deep)]"><ArrowLeft size={16} /> Back to public website</Link>
-          <div className="mt-8"><Image src="/images/logo-full.png" alt="Maison Prisca — Lagos Atelier" width={320} height={170} className="w-40 object-contain" /></div>
-          <p className="label mt-6">Private atelier access</p>
-          <h1 className="serif mt-3 text-4xl">Admin sign in.</h1>
+        <div className="w-full max-w-md">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--rose-deep)] lg:hidden"><ArrowLeft size={16} /> Back to public website</Link>
+          <p className="eyebrow mt-8 lg:mt-0">Private atelier access</p>
+          <h1 className="serif mt-3 text-5xl">Sign in.</h1>
           <p className="mt-3 text-sm leading-6 text-[var(--muted)]">Use the Appwrite account created for the approved designer email.</p>
-          <form onSubmit={signIn} className="mt-7 grid gap-4">
+          <form onSubmit={signIn} className="mt-8 grid gap-4">
             <label className="text-[13px] font-medium">Approved email<input className="input mt-2" value={email} onChange={e => setEmail(e.target.value)} type="email" required /></label>
             <label className="text-[13px] font-medium">Appwrite password<input className="input mt-2" value={password} onChange={e => setPassword(e.target.value)} type="password" required /></label>
             {!appwriteReady && <p className="rounded-xl bg-[var(--blush)]/40 p-3 text-sm leading-6 text-[var(--rose-deep)]">Appwrite isn't connected yet. Add <code>NEXT_PUBLIC_APPWRITE_DATABASE_ID</code>, the products table ID and storage bucket ID to this deployment's environment, then create the designer account inside Appwrite.</p>}
@@ -97,7 +104,7 @@ export default function AdminDashboard() {
 
   return (
     <main className="min-h-screen" style={{ background: 'var(--paper)' }}>
-      <header className="border-b border-[var(--line)] bg-[var(--white)]">
+      <header className="border-b border-[var(--line)] bg-[var(--white)]" style={{ boxShadow: 'inset 0 -2px 0 var(--gold)' }}>
         <div className="shell flex h-[78px] items-center justify-between">
           <div className="flex items-center gap-3">
             <Monogram />
@@ -112,13 +119,13 @@ export default function AdminDashboard() {
 
       <div className="shell grid gap-10 py-12 lg:grid-cols-[.75fr_1.25fr]">
         <aside>
-          <p className="label">Welcome back</p>
+          <p className="eyebrow">Welcome back</p>
           <h1 className="serif mt-3 text-5xl">Your collection,<br />in your hands.</h1>
           <p className="mt-5 max-w-sm leading-7 text-[var(--muted)]">Add, edit and publish pieces to the customer storefront. Orders and enquiries continue through WhatsApp.</p>
-          <div className="mt-8 grid grid-cols-3 gap-3">
-            <div className="card p-4"><strong className="serif text-3xl">{products.filter(p => p.status === 'Published').length}</strong><span className="mt-1 block text-xs text-[var(--muted)]">Published</span></div>
-            <div className="card p-4"><strong className="serif text-3xl">{products.filter(p => p.status !== 'Published').length}</strong><span className="mt-1 block text-xs text-[var(--muted)]">In studio</span></div>
-            <div className="card p-4"><strong className="serif text-3xl">{products.filter(p => p.featured).length}</strong><span className="mt-1 block text-xs text-[var(--muted)]">Featured</span></div>
+          <div className="margin-note mt-8">
+            <div className="toc-row !py-3"><span className="toc-num">{products.filter(p => p.status === 'Published').length}</span><span className="self-center text-sm text-[var(--muted)]">Published</span></div>
+            <div className="toc-row !py-3"><span className="toc-num">{products.filter(p => p.status !== 'Published').length}</span><span className="self-center text-sm text-[var(--muted)]">In studio</span></div>
+            <div className="toc-row !py-3"><span className="toc-num">{products.filter(p => p.featured).length}</span><span className="self-center text-sm text-[var(--muted)]">Featured</span></div>
           </div>
           <button onClick={() => setEditing({ ...empty, slug: `piece-${Date.now()}` })} className="btn btn-soft mt-8 w-full"><PackagePlus size={18} /> Add new piece</button>
           <div className="mt-5 rounded-2xl bg-[var(--blush)]/40 p-5 text-sm leading-6 text-[var(--rose-deep)]">
@@ -128,7 +135,7 @@ export default function AdminDashboard() {
 
         <section>
           <div className="mb-5 flex items-center justify-between">
-            <div><p className="label">Live catalogue</p><h2 className="serif mt-2 text-3xl">Your pieces</h2></div>
+            <div><p className="eyebrow">Live catalogue</p><h2 className="serif mt-2 text-3xl">Your pieces</h2></div>
             <span className="text-sm text-[var(--muted)]">{appwriteReady ? 'Appwrite connected' : 'Appwrite not connected'}</span>
           </div>
           {products.length === 0 && (
