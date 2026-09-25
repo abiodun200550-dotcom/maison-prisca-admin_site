@@ -1,5 +1,5 @@
 'use client';
-import { Client,Account,TablesDB,Storage,ID,Query,ImageGravity,ImageFormat } from 'appwrite';
+import { Client,Account,TablesDB,Storage,ID,Query } from 'appwrite';
 import type { Product,StoreOrder } from './data';
 const endpoint=process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT||'https://fra.cloud.appwrite.io/v1';
 const projectId=process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID||'6ab3f77800235eff10da';
@@ -22,7 +22,7 @@ function productPayload(product:Partial<Product>){const payload:Record<string,un
 export async function createProduct(product:Product):Promise<Product>{requireConfig();return await tablesDB.createRow({databaseId,tableId,rowId:ID.unique(),data:productPayload(product)}) as unknown as Product;}
 export async function updateProduct(id:string,product:Partial<Product>):Promise<Product>{requireConfig();return await tablesDB.updateRow({databaseId,tableId,rowId:id,data:productPayload(product)}) as unknown as Product;}
 export async function deleteProduct(id:string){requireConfig();await tablesDB.deleteRow({databaseId,tableId,rowId:id});}
-export async function uploadImage(file:File):Promise<string>{requireConfig();if(!storageBucketId)throw new Error('Add the Appwrite storage bucket ID before uploading images.');if(!['image/jpeg','image/png'].includes(file.type))throw new Error('Upload a JPG or PNG image.');if(file.size>10*1024*1024)throw new Error('Images must be 10 MB or smaller.');const uploaded=await storage.createFile(storageBucketId,ID.unique(),file);return storage.getFilePreview({bucketId:storageBucketId,fileId:uploaded.$id,width:1400,height:1800,gravity:ImageGravity.Center,quality:82,output:ImageFormat.Webp}).toString();}
+export async function uploadImage(file:File):Promise<string>{requireConfig();if(!storageBucketId)throw new Error('Add the Appwrite storage bucket ID before uploading images.');if(!['image/jpeg','image/png'].includes(file.type))throw new Error('Upload a JPG or PNG image.');if(file.size>10*1024*1024)throw new Error('Images must be 10 MB or smaller.');const uploaded=await storage.createFile(storageBucketId,ID.unique(),file);return storage.getFileView({bucketId:storageBucketId,fileId:uploaded.$id}).toString();}
 export async function listOrders():Promise<StoreOrder[]>{requireOrders();return await fetchAllRows(ordersTableId,[Query.orderDesc('$createdAt')]) as unknown as StoreOrder[];}
 export async function updateOrderStatus(id:string,status:StoreOrder['status']):Promise<StoreOrder>{requireOrders();return await tablesDB.updateRow({databaseId,tableId:ordersTableId,rowId:id,data:{status}}) as unknown as StoreOrder;}
 export function explainAppwriteError(error:unknown){const message=error instanceof Error?error.message:String(error);if(/index|attribute|query/i.test(message))return `${message} Check that the Appwrite tables have the documented attributes and indexes (Products needs a key on status).`;return message;}
