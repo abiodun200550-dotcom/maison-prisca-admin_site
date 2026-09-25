@@ -2,9 +2,9 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { account, appwriteReady, createProduct, deleteProduct, listAllProducts, updateProduct, uploadImage } from '@/src/appwrite';
-import { money, type Product } from '@/src/data';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, ImagePlus, LogOut, PackagePlus, Pencil, Trash2, X } from 'lucide-react';
+import { account, appwriteReady, createProduct, deleteProduct, explainAppwriteError, listAllProducts, listOrders, updateProduct, uploadImage } from '@/src/appwrite';
+import { money, slugify, type Product, type StoreOrder } from '@/src/data';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, ImagePlus, LogOut, PackagePlus, Pencil, ShoppingBag, Trash2, X } from 'lucide-react';
 
 const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || 'abiodun200550@gmail.com';
 const empty: Product = { name: '', slug: '', category: 'Ready-to-Wear', description: '', price: 0, sizes: ['S', 'M', 'L'], colours: ['Black'], fabric: '', image: '', gallery: [], status: 'Draft', hasDiscount: false, originalPrice: 0, discountLabel: '' };
@@ -20,18 +20,22 @@ export default function AdminDashboard() {
   const [email, setEmail] = useState(adminEmail);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [productsError, setProductsError] = useState('');
+  const [ordersError, setOrdersError] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [editing, setEditing] = useState<Product | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => { account.get().then(() => setSession(true)).catch(() => {}).finally(() => setCheckingSession(false)); }, []);
-  useEffect(() => { if (session) listAllProducts().then(setProducts).catch(e => setError(e.message)); }, [session]);
+  useEffect(() => { if (session) { setProductsError(''); listAllProducts().then(setProducts).catch(e => setProductsError(explainAppwriteError(e))); } }, [session]);
+  useEffect(() => { if (session) { setOrdersError(''); listOrders().then(setOrders).catch(e => setOrdersError(explainAppwriteError(e))); } }, [session]);
 
   const signIn = async (e: React.FormEvent) => {
     e.preventDefault(); setError('');
     if (!appwriteReady) { setError("Appwrite isn't connected yet — add the database, table and storage bucket IDs to this deployment's environment first."); return; }
-    if (email.toLowerCase() !== adminEmail.toLowerCase()) { setError('Use the approved Appwrite administrator email.'); return; }
+    if (adminEmail && email.toLowerCase() !== adminEmail.toLowerCase()) { setError('Use the configured administrator email. Appwrite table permissions provide the actual access control.'); return; }
     setLoading(true);
     try { await account.createEmailPasswordSession(email, password); setSession(true); }
     catch (err) { setError(err instanceof Error ? err.message : 'Sign-in failed.'); }
@@ -39,15 +43,19 @@ export default function AdminDashboard() {
   };
   const signOut = async () => { await account.deleteSession('current').catch(() => {}); setSession(false); };
   const save = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!editing) return; setLoading(true);
+    e.preventDefault(); if (!editing) return; setLoading(true); setError('');
     try {
-      const saved = editing.$id ? await updateProduct(editing.$id, editing) : await createProduct(editing);
+      const baseSlug = slugify(editing.name) || `piece-${Date.now().toString(36)}`;
+      const duplicate = products.some(p => p.$id !== editing.$id && p.slug === baseSlug);
+      const productToSave = { ...editing, slug: duplicate ? `${baseSlug}-${Date.now().toString(36).slice(-4)}` : baseSlug };
+      const saved = editing.$id ? await updateProduct(editing.$id, productToSave) : await createProduct(productToSave);
       setProducts(v => editing.$id ? v.map(p => p.$id === saved.$id ? saved : p) : [saved, ...v]);
       setEditing(null);
-    } catch (err) { setError(err instanceof Error ? err.message : 'Could not save this piece.'); }
+    } catch (err) { setError(explainAppwriteError(err) || 'Could not save this piece.'); }
     finally { setLoading(false); }
   };
-  const remove = async (p: Product) => { if (!p.$id || !confirm(`Delete ${p.name}?`)) return; await deleteProduct(p.$id); setProducts(v => v.filter(x => x.$id !== p.$id)); };
+  const remove = async (p: Product) => { if (!p.$id || !confirm(`Delete ${p.name}?`)) return; setError(''); try { await deleteProduct(p.$id); setProducts(v => v.filter(x => x.$id !== p.$id)); } catch (err) { setError(explainAppwriteError(err)); } };
+  const publish = async (p: Product) => { if (!p.$id) return; setError(''); try { const updated = await updateProduct(p.$id, { status: 'Published' }); setProducts(v => v.map(x => x.$id === p.$id ? updated : x)); } catch (err) { setError(explainAppwriteError(err)); } };
   const chooseImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length || !editing) return;
@@ -77,7 +85,7 @@ export default function AdminDashboard() {
   if (!session) return (
     <main className="min-h-screen bg-[var(--paper)] lg:grid lg:grid-cols-[1fr_1fr]">
       <div className="feature-tile hidden min-h-screen justify-between !p-12 lg:flex lg:flex-col" style={{ justifyContent: 'space-between' }}>
-        <Link href="/" className="inline-flex w-fit items-center gap-2 text-sm font-medium text-white/70"><ArrowLeft size={16} /> Back to public website</Link>
+            <a href={process.env.NEXT_PUBLIC_PUBLIC_SITE_URL || 'https://maison-prisca-customer.netlify.app'} className="inline-flex w-fit items-center gap-2 text-sm font-medium text-white/70"><ArrowLeft size={16} /> Back to public website</a>
         <div>
           <Image src="/images/logo-mark.png" alt="Maison Prisca" width={54} height={54} />
           <blockquote className="pull-quote mt-8 max-w-sm text-4xl text-white">Luxury is the feeling of being perfectly understood.</blockquote>
@@ -86,7 +94,7 @@ export default function AdminDashboard() {
       </div>
       <div className="shell flex min-h-screen items-center justify-center py-16">
         <div className="w-full max-w-md">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-[var(--rose-deep)] lg:hidden"><ArrowLeft size={16} /> Back to public website</Link>
+          <a href={process.env.NEXT_PUBLIC_PUBLIC_SITE_URL || 'https://maison-prisca-customer.netlify.app'} className="inline-flex items-center gap-2 text-sm font-medium text-[var(--rose-deep)] lg:hidden"><ArrowLeft size={16} /> Back to public website</a>
           <p className="eyebrow mt-8 lg:mt-0">Private atelier access</p>
           <h1 className="serif mt-3 text-5xl">Sign in.</h1>
           <p className="mt-3 text-sm leading-6 text-[var(--muted)]">Use the Appwrite account created for the approved designer email.</p>
@@ -111,7 +119,7 @@ export default function AdminDashboard() {
             <div><strong className="serif block text-xl leading-none">Maison Prisca</strong><small className="mt-1 block text-[11px] text-[var(--muted)]">Private atelier dashboard</small></div>
           </div>
           <div className="flex items-center gap-3">
-            <a href={process.env.NEXT_PUBLIC_PUBLIC_SITE_URL || 'https://maison-prisca-customer.netlify.app'} className="btn btn-line !px-4 !py-2.5 text-sm">View public site</a>
+            <a href={process.env.NEXT_PUBLIC_PUBLIC_SITE_URL || 'https://maison-prisca-customer.netlify.app'} target="_blank" rel="noreferrer" className="btn btn-line !px-4 !py-2.5 text-sm">View public site</a>
             <button onClick={signOut} className="btn btn-dark !px-4 !py-2.5 text-sm"><LogOut size={15} /> Sign out</button>
           </div>
         </div>
@@ -121,13 +129,18 @@ export default function AdminDashboard() {
         <aside>
           <p className="eyebrow">Welcome back</p>
           <h1 className="serif mt-3 text-5xl">Your collection,<br />in your hands.</h1>
-          <p className="mt-5 max-w-sm leading-7 text-[var(--muted)]">Add, edit and publish pieces to the customer storefront. Orders and enquiries continue through WhatsApp.</p>
+          <p className="mt-5 max-w-sm leading-7 text-[var(--muted)]">Add, edit and publish pieces to the customer storefront, then review orders as they arrive from checkout.</p>
+          {error && !editing && <p className="mt-5 rounded-xl bg-red-50 p-3 text-sm leading-6 text-red-800">{error}</p>}
+          {ordersError && <p className="mt-5 rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-950"><strong>Orders could not be loaded.</strong> {ordersError} Check the Orders table ID and grant Read only to the admin user/team.</p>}
           <div className="margin-note mt-8">
+            <div className="toc-row !py-3"><span className="toc-num">{orders.filter(o => o.status === 'New').length}</span><span className="self-center text-sm text-[var(--muted)]">New orders</span></div>
+            <div className="toc-row !py-3"><span className="toc-num">{orders.length}</span><span className="self-center text-sm text-[var(--muted)]">Total orders</span></div>
             <div className="toc-row !py-3"><span className="toc-num">{products.filter(p => p.status === 'Published').length}</span><span className="self-center text-sm text-[var(--muted)]">Published</span></div>
             <div className="toc-row !py-3"><span className="toc-num">{products.filter(p => p.status !== 'Published').length}</span><span className="self-center text-sm text-[var(--muted)]">In studio</span></div>
             <div className="toc-row !py-3"><span className="toc-num">{products.filter(p => p.featured).length}</span><span className="self-center text-sm text-[var(--muted)]">Featured</span></div>
           </div>
           <button onClick={() => setEditing({ ...empty, slug: `piece-${Date.now()}` })} className="btn btn-soft mt-8 w-full"><PackagePlus size={18} /> Add new piece</button>
+          <Link href="/admin/orders" className="btn btn-dark mt-3 w-full"><ShoppingBag size={17}/> Manage orders <span className="ml-auto rounded-full bg-white/15 px-2 py-0.5 text-xs">{orders.filter(o => o.status !== 'Completed').length}</span></Link>
           <div className="mt-5 rounded-2xl bg-[var(--blush)]/40 p-5 text-sm leading-6 text-[var(--rose-deep)]">
             <strong className="block">Publishing tip</strong> Keep categories consistent so filters make sense on the storefront — try Ready-to-Wear, Bespoke &amp; Custom, Bridal, Pageant &amp; Occasion, Children&apos;s Fashion, Restyling &amp; Alterations, Ankara or Adire.
           </div>
@@ -138,7 +151,8 @@ export default function AdminDashboard() {
             <div><p className="eyebrow">Live catalogue</p><h2 className="serif mt-2 text-3xl">Your pieces</h2></div>
             <span className="text-sm text-[var(--muted)]">{appwriteReady ? 'Appwrite connected' : 'Appwrite not connected'}</span>
           </div>
-          {products.length === 0 && (
+          {productsError && <div className="card mb-4 border-amber-300 bg-amber-50 p-5 text-sm leading-6 text-amber-950"><strong>Product catalogue could not be loaded.</strong><p>{productsError}</p><p className="mt-2 text-xs">Verify the project/database/table IDs, authenticated admin Read permission, the table schema, and the status index if shown.</p></div>}
+          {!productsError && products.length === 0 && (
             <div className="card p-8 text-center">
               <p className="serif text-2xl">Nothing here yet.</p>
               <p className="mt-2 text-sm leading-6 text-[var(--muted)]">Add your first piece — it will appear on the customer site once you publish it.</p>
@@ -166,7 +180,7 @@ export default function AdminDashboard() {
                   <div className="mt-3 flex gap-2">
                     <button onClick={() => setEditing(p)} className="btn btn-line !px-3 !py-2 text-xs"><Pencil size={14} /> Edit</button>
                     {p.status !== 'Published' && (
-                      <button onClick={async () => { if (p.$id) { const updated = await updateProduct(p.$id, { status: 'Published' }); setProducts(v => v.map(x => x.$id === p.$id ? updated : x)); } }} className="btn btn-dark !px-3 !py-2 text-xs"><Check size={14} /> Publish</button>
+                      <button onClick={() => void publish(p)} className="btn btn-dark !px-3 !py-2 text-xs"><Check size={14} /> Publish</button>
                     )}
                     <button onClick={() => remove(p)} className="rounded-full border border-red-200 px-3 py-2 text-xs font-medium text-red-700"><Trash2 size={14} /></button>
                   </div>
